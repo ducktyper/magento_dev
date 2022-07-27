@@ -1,0 +1,57 @@
+version: '3'
+services:
+  web:
+    image: markoshust/magento-nginx:1.18-8
+    ports:
+      - "3010:8000"
+    volumes:
+      - 'app:/var/www/html'
+      - ./default.conf:/etc/nginx/conf.d/default.conf:cached
+      - sockdata:/sock
+
+  app:
+    build: .
+    volumes:
+      - 'app:/var/www/html'
+      - sockdata:/sock
+      - ./post_install:/post_install
+    depends_on:
+      db:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+
+  db:
+    image: 'mariadb:10.4'
+    environment:
+      - MYSQL_ROOT_PASSWORD=magento2
+      - MYSQL_DATABASE=magento2
+      - MYSQL_USER=magento2
+      - MYSQL_PASSWORD=magento2
+    ports:
+      - 3301:3306
+    volumes:
+      - 'db:/var/lib/mysql'
+    healthcheck:
+      test: 'mysqladmin ping -h localhost -pmagento2'
+      interval: 30s
+      timeout: 30s
+      retries: 3
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.17.3
+    environment:
+      - discovery.type=single-node
+      - indices.breaker.total.use_real_memory=false
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+    healthcheck:
+       test: curl -s http://elasticsearch:9200 >/dev/null || exit 1
+       interval: 30s
+       timeout: 10s
+       retries: 50
+
+volumes:
+  app: {  }
+  db: {  }
+  sockdata: { }
